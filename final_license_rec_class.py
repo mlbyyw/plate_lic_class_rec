@@ -60,7 +60,10 @@ class ResizeWithPadding:
 train_transform = transforms.Compose([
     ResizeWithPadding((256, 256)),
     transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(0.2, 0.2, 0.2),
+    transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.02),
+    transforms.RandomAffine(degrees=5, translate=(0.02, 0.02), scale=(0.95, 1.05), shear=5),
+    transforms.RandomPerspective(distortion_scale=0.2, p=0.5),
+    transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406],
                          [0.229, 0.224, 0.225])
