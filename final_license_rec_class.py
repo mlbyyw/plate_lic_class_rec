@@ -185,7 +185,7 @@ scheduler = CosineAnnealingLR(optimizer, T_max=10)
 
 train_losses, test_losses, train_acc, test_acc = [], [], [], []
 best_acc = 0
-num_epochs = 5
+num_epochs = 25
 
 # === Train one epoch
 def train_one_epoch(model, loader):
@@ -268,11 +268,7 @@ from matplotlib import pyplot as plt
 from paddleocr import PaddleOCR, draw_ocr
 from ppocr.utils.logging import get_logger as ppocr_get_logger
 
-# === Silence PaddleOCR Logs
-ppocr_get_logger().setLevel(logging.ERROR)
 
-# === Initialize OCR Model
-ocr = PaddleOCR(lang="en", use_gpu=True, show_log=False)
 
 # === Load Ground Truth Labels
 def label_reader(file_path):
@@ -284,47 +280,38 @@ true_labels = label_reader('groundtruth.csv')
 # === OCR Prediction Function
 def predict(img_path, reader):
     result = reader.ocr(img_path)
-    img = plt.imread(img_path)
-
     if not result or not result[0]:
-        return "0", 0.0  # Fallback for no detection
+        return "0", 0.0
 
     predictions = []
-    for bbox, (text, conf) in result[0]:
-        if len(bbox) != 4:
-            continue
-        area = abs(bbox[1][0] - bbox[0][0]) * abs(bbox[2][1] - bbox[1][1])
-        y_center = np.mean([pt[1] for pt in bbox])
-        predictions.append((bbox, text, area, y_center, conf))
+    for line in result[0]:
+        bbox = line[0]
+        text, conf = line[1]
 
-    # Pick region with largest area as main
+        try:
+            # Make sure bbox is 4 points with 2D coordinates
+            if not (len(bbox) == 4 and all(isinstance(pt, list) and len(pt) == 2 for pt in bbox)):
+                continue
+
+            # Convert coordinates to floats
+            x0, y0 = map(float, bbox[0])
+            x1, y1 = map(float, bbox[1])
+            x2, y2 = map(float, bbox[2])
+            x3, y3 = map(float, bbox[3])
+
+            area = abs(x1 - x0) * abs(y2 - y1)
+            y_center = np.mean([y0, y1, y2, y3])
+
+            predictions.append((bbox, text, area, y_center, conf))
+        except Exception:
+            continue
+
+    if not predictions:
+        return "0", 0.0
+
     main = max(predictions, key=lambda x: x[2])
-    threshold = img.shape[0] // 8
-    pred_text, confidences = None, []
-
-    for i, (bbox, text, area, y_center, conf) in enumerate(predictions):
-        if bbox == main[0]:
-            continue
-
-        close_vertically = abs(y_center - main[3]) <= 15
-        similar_area = abs(area - main[2]) <= 7000
-        aligned = abs(bbox[1][1] - main[0][1]) <= threshold or abs(bbox[0][1] - main[1][1]) <= threshold
-
-        if close_vertically and similar_area and aligned:
-            if bbox[0][0] < main[0][0]:
-                pred_text = text + main[1]
-                confidences = [conf, main[4]]
-            else:
-                pred_text = main[1] + text
-                confidences = [main[4], conf]
-            break
-
-    # Use single if no pair found
-    if not pred_text:
-        pred_text = main[1]
-        confidences = [main[4]]
-
-    return pred_text, float(np.mean(confidences))
+    pred_text, pred_conf = main[1], main[4]
+    return pred_text, float(pred_conf)
 
 # Evaluate all images
 #all_images = glob.glob(os.path.join(
@@ -443,7 +430,6 @@ for fname in sorted(os.listdir(val_path)):
         })
 
     except Exception as e:
-        print(f"❌ Failed: {fname} | {e}")
         continue
 
 # === Output
