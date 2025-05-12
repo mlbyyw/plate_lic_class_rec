@@ -16,11 +16,15 @@ from torchvision import transforms
 from tqdm import tqdm
 
 # === Paths ===
-base_path = ''
+base_path = '/content/drive/My Drive/plate/'
 train_path = os.path.join(base_path, 'train/train')
 val_path = os.path.join(base_path, 'val/val')
+test_path = os.path.join(base_path, 'test/test')
+
+
 train_list_path = os.path.join(base_path, 'train/train_list.txt')
 val_list_path = os.path.join(base_path, 'val/val_list.txt')
+test_list_path = os.path.join(base_path, 'test/test_list.txt')
 model_save_path = 'best_model.pth'
 
 # === Class Names and Mapping ===
@@ -127,13 +131,14 @@ class LicensePlateDataset(Dataset):
 # === Instantiate Datasets
 train_dataset = LicensePlateDataset(train_path, train_list_path, class_to_idx, transform=train_transform)
 val_dataset = LicensePlateDataset(val_path, val_list_path, class_to_idx, transform=val_transform)
-
+test_dataset = LicensePlateDataset(test_path, test_list_path, class_to_idx, transform=val_transform)
 
 
 
 data_loaders = {
     'train': DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True, drop_last=True),
-    'test': DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True)
+    'val': DataLoader(val_dataset, batch_size=32, shuffle=False, pin_memory=True),
+    'test': DataLoader(test_dataset, batch_size=32, shuffle=False, pin_memory=True)
 }
 
 from torchsummary import summary
@@ -188,7 +193,7 @@ scheduler = CosineAnnealingLR(optimizer, T_max=10)
 
 train_losses, test_losses, train_acc, test_acc = [], [], [], []
 best_acc = 0
-num_epochs = 2
+num_epochs = 6
 
 # === Train one epoch
 def train_one_epoch(model, loader):
@@ -250,7 +255,7 @@ def evaluate(model, loader):
 for epoch in range(num_epochs):
     print(f"\n🌱 Epoch {epoch + 1}/{num_epochs}")
     train_one_epoch(model, data_loaders['train'])
-    acc = evaluate(model, data_loaders['test'])
+    acc = evaluate(model, data_loaders['val'])
     print(f"✅ Test Accuracy: {acc:.2f}%")
 
     scheduler.step()
